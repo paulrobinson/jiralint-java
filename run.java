@@ -3,8 +3,7 @@
 //DEPS info.picocli:picocli:4.2.0, com.atlassian.jira:jira-rest-java-client-api:3.0.0, com.atlassian.jira:jira-rest-java-client-core:3.0.0, org.json:json:20200518, com.konghq:unirest-java:3.7.04, com.sun.mail:javax.mail:1.6.2
 
 import com.atlassian.jira.rest.client.api.JiraRestClient;
-import com.atlassian.jira.rest.client.api.domain.Issue;
-import com.atlassian.jira.rest.client.api.domain.SearchResult;
+import com.atlassian.jira.rest.client.api.domain.*;
 import com.atlassian.jira.rest.client.internal.async.AsynchronousJiraRestClientFactory;
 import com.sun.mail.smtp.SMTPTransport;
 import org.json.JSONArray;
@@ -54,6 +53,11 @@ class run implements Callable<Integer> {
     private static final String EMAIL_FROM = "probinso@redhat.com";
     private static final String EMAIL_SUBJECT = "ACTION REQUIRED: Please update these Quarkus JIRA issues";
 
+    //Cache of component leads (looking up is expensive)
+    private static final Map<String, JiraUser> componentToLeadMap = new HashMap<>();
+
+    private JiraRestClient restClient;
+
     public static void main(String... args) {
         int exitCode = new CommandLine(new run()).execute(args);
         System.exit(exitCode);
@@ -66,7 +70,7 @@ class run implements Callable<Integer> {
             Initialise
          */
         Map<String, CheckItem> configuration = loadCheckItemMap(pathToConfigFile);
-        final JiraRestClient restClient = new AsynchronousJiraRestClientFactory().createWithBasicHttpAuthentication(new URI(jiraServerURL), jiraUsername, jiraPassword);
+        restClient = new AsynchronousJiraRestClientFactory().createWithBasicHttpAuthentication(new URI(jiraServerURL), jiraUsername, jiraPassword);
 
         /*
             Gather all report results
@@ -80,10 +84,13 @@ class run implements Callable<Integer> {
             for (Issue issue :searchResultsAll.getIssues()) {
 
                 JiraUser jiraUser;
-                if (issue.getAssignee() != null) {
+                if (issue.getAssignee() != null) { // Try assignee first
                     jiraUser = new JiraUser(issue.getAssignee().getDisplayName(), issue.getAssignee().getEmailAddress());
                 }
-                else //Fallback contact
+                else if (getFirstComponentLead(issue) != null) { // Try component lead next
+                    jiraUser = getFirstComponentLead(issue);
+                }
+                else //Fallback to JIRA Lint process maintainer
                 {
                     jiraUser = new JiraUser("Paul Robinson", "probinso@redhat.com");
                 }
@@ -114,6 +121,42 @@ class run implements Callable<Integer> {
         }
 
         return 0;
+    }
+
+    private JiraUser lookupComponentLead(String componentName) {
+
+        //Return cached value if available
+        if (componentToLeadMap.get(componentName) != null) {
+            return componentToLeadMap.get(componentName);
+        }
+
+        //Not cached, so lookup
+        JiraUser result;
+        Project project = restClient.getProjectClient().getProject("QUARKUS").claim();
+        for (BasicComponent basicComponent : project.getComponents()) {
+            if (basicComponent.getName().equals(componentName)) {
+               Component fullComponent =  restClient.getComponentClient().getComponent(basicComponent.getSelf()).claim();
+               if (fullComponent.getLead() != null) {
+                   User user = restClient.getUserClient().getUser(fullComponent.getLead().getSelf()).claim();
+                   result = new JiraUser(user.getDisplayName(), user.getEmailAddress());
+                   componentToLeadMap.put(fullComponent.getName(), result);
+                   return result;
+               }
+            }
+        }
+
+        //Failed to find one, so return null
+        return null;
+    }
+
+    private JiraUser getFirstComponentLead(Issue issue) {
+        for (BasicComponent component : issue.getComponents()) {
+            JiraUser componentLead = lookupComponentLead(component.getName());
+            if (componentLead != null) {
+                return componentLead;
+            }
+        }
+        return null;
     }
 
     private Map<String, CheckItem> loadCheckItemMap(String pathToConfigFile) {
@@ -164,7 +207,7 @@ class run implements Callable<Integer> {
 
         body += "</p>";
         body += "<p>Thanks,</p>";
-        body += "<p>Paul Robinson (via the JIRA Lint tool)</p>";
+        body += "<p>Paul (via the JIRA Lint tool)</p>";
 
         return body;
     }
