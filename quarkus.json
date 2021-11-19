@@ -1,0 +1,38 @@
+[
+ {
+   "noTeamComponent": {
+     "jql": "project = Quarkus AND (component not in ('team/eng', 'team/cee', 'team/docs', 'team/ibm', 'team/mktg', 'team/pm', 'team/pgm', 'team/prod', 'team/qe') OR component is EMPTY) AND status != closed",
+     "description": "Issue has no Team component. Please update the component field with one (or more) of: 'team/eng', 'team/cee', 'team/docs', 'team/ibm', 'team/mktg', 'team/pm', 'team/pgm', 'team/prod', 'team/qe'"
+   }
+ },
+ {
+   "noAssigneeWhenInProgress": {
+     "jql": "project = Quarkus AND status in ('Analysis in Progress', 'Dev In Progress') AND assignee is EMPTY ",
+     "description": "Issue is marked as in progress, but there is no assignee. The assignee should be set to the primary person who is working on this"
+   }
+ },
+ {
+   "erroneousLabel": {
+     "jql": "project = Quarkus AND labels in ('Eng,', 'CEE,', 'Docs,', 'IBM,', 'Marketing,', 'PM,', 'PgM,', 'Prod,', 'QE,')",
+     "description": "This issue appears to be using a label with a typo. Notice the ',' after one of the labels. This is a problem, as the erroneous label appears as an option in autocomplete, encouraging further errors. Please can you update it to remove the ',' character?"
+   }
+ },
+ {
+   "missingVersion": {
+     "jql": "project = Quarkus AND fixVersion is EMPTY AND status not in ('To Do', 'Analysis in Progress', 'closed') AND (component not in (code.quarkus) or component is Empty)",
+     "description": "This issue is in progress or completed so should have a fixVersion set. Please set the fix version, or reply to this email if you are unsure what fix version to set"
+   }
+ },
+ {
+   "versionedCodeQuarkusIssues": {
+     "jql": "project = Quarkus AND (fixVersion is NOT EMPTY OR affectedVersion is not EMPTY) AND component in (code.quarkus)",
+     "description": "Issues with the code.quarkus component should not be assigned a fix version or affects version as they represent issues with the https://code.quarkus.redhat.com service, rather than a particular RHBoQ code release"
+   }
+ },
+ {
+   "missingGA": {
+     "jql": "project = quarkus and fixVersion !~ '*.ga' AND fixVersion != 'Ongoing Prod'",
+     "description": "This issue seems to have a fixVersion set to a particular product release, but is missing the GA release it targets. Please respond to this email if you are unure what GA release to add to the fixVersion field."
+   }
+ }
+]
