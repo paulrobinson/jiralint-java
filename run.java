@@ -66,6 +66,9 @@ class run implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
 
+        System.out.println("\n=== Initialising ===");
+        System.out.println("Using reports defined in " + pathToConfigFile);
+
         /*
             Initialise
          */
@@ -75,11 +78,15 @@ class run implements Callable<Integer> {
         /*
             Gather all report results
          */
+        System.out.println("\n=== Gathering reports ===");
         List<ReportResult> allReportResults = new ArrayList<>();
         for (String checkItemID : configuration.keySet()) {
 
             CheckItem checkItem = configuration.get(checkItemID);
             SearchResult searchResultsAll = restClient.getSearchClient().searchJql(checkItem.getJql()).claim();
+
+            System.out.println("Check for '" + checkItemID + "'");
+            System.out.println(searchResultsAll.getTotal() + " Issues found with '" + checkItemID + "'");
 
             for (Issue issue :searchResultsAll.getIssues()) {
 
@@ -115,7 +122,14 @@ class run implements Callable<Integer> {
         /*
             Generate Email for each user
          */
+        System.out.println("\n=== Emailing reports to users ===");
         for (JiraUser jiraUser : reportsByJiraUser.keySet()) {
+
+            System.out.println("Sending email with " + reportsByJiraUser.get(jiraUser).size() + " issue(s) to: " + jiraUser.getEmail());
+            for (ReportResult reportResult : reportsByJiraUser.get(jiraUser)) {
+                System.out.println("* " + reportResult.getJiraLink());
+            }
+
             String emailBody = createEmailBody(jiraUser, reportsByJiraUser.get(jiraUser));
             sendMail(emailBody, "probinso@redhat.com"); //Always send emails to Paul for now
         }
@@ -145,7 +159,7 @@ class run implements Callable<Integer> {
             }
         }
 
-        //Failed to find one, so return null
+        //Failed to find a lead, so return null
         return null;
     }
 
@@ -194,7 +208,7 @@ class run implements Callable<Integer> {
                 "<p>The JIRA Lint tool has determined that you are the best person to ask to fix them. Most likely you are the assignee, or (for issues with no assignee) the component lead.</p>";
 
         body += "<table border='1' style='border-collapse:collapse'>";
-        body += "<tr><th>Issue Link</th><th>Issue Summary</th><th>Problem Description</th></tr>";
+        body += "<tr><th>Issue Link</th><th>Issue Summary</th><th>Problem Description & Required Action (from you)</th></tr>";
         for (ReportResult reportResult : reportResults) {
 
             body += "<tr>";
@@ -206,6 +220,7 @@ class run implements Callable<Integer> {
         body += "</table>";
 
         body += "</p>";
+        body += "<p>If you are confused, or think this email has been sent in error, hit reply to let me know.</p>";
         body += "<p>Thanks,</p>";
         body += "<p>Paul (via the JIRA Lint tool)</p>";
 
@@ -285,13 +300,13 @@ class run implements Callable<Integer> {
         }
     }
 
-    class ReportResult {
+    static class ReportResult {
 
-        String summary;
-        String description;
-        URL jiraLink;
-        String jiraKey;
-        JiraUser contact;
+        final private String summary;
+        final private  String description;
+        final private URL jiraLink;
+        final private String jiraKey;
+        final private JiraUser contact;
 
         public ReportResult(String summary, String description, URL jiraLink, String jiraKey, JiraUser contact) {
             this.summary = summary;
@@ -322,10 +337,10 @@ class run implements Callable<Integer> {
         }
     }
 
-    class JiraUser {
+    static class JiraUser {
 
-        private String name;
-        private String email;
+        final private String name;
+        final private String email;
 
         public JiraUser(String name, String email) {
             this.name = name;
@@ -354,10 +369,10 @@ class run implements Callable<Integer> {
         }
     }
 
-    class CheckItem {
+    static class CheckItem {
 
-        private String jql;
-        private String description;
+        final private String jql;
+        final private String description;
 
         public CheckItem(String jql, String description) {
             this.jql = jql;

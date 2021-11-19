@@ -24,9 +24,9 @@
    }
  },
  {
-   "versionedCodeQuarkusIssues": {
-     "jql": "project = Quarkus AND (fixVersion is NOT EMPTY OR affectedVersion is not EMPTY) AND component in (code.quarkus)",
-     "description": "Issues with the code.quarkus component should not be assigned a fix version or affects version as they represent issues with the https://code.quarkus.redhat.com service, rather than a particular RHBoQ code release"
+   "versionedUpstreamKafkaIssues": {
+     "jql": "project = Quarkus AND (fixVersion is NOT EMPTY OR affectedVersion is not EMPTY) AND labels in (upstream-kafka)",
+     "description": "Issues with the 'upstream-kafka' label set must not be assigned a fix version or affects version. This is because they represent issues that need to be fixed in the Kafka upstream, rather than a particular RHBoQ code release"
    }
  },
  {
