@@ -8,6 +8,7 @@ import com.atlassian.jira.rest.client.internal.async.AsynchronousJiraRestClientF
 import com.sun.mail.smtp.SMTPTransport;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.w3c.dom.Element;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -17,7 +18,7 @@ import javax.mail.MessagingException;
 import javax.mail.Session;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -26,10 +27,17 @@ import java.util.*;
 import java.util.concurrent.Callable;
 
 import javax.activation.DataSource;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.util.Properties;
+
+import org.w3c.dom.Document;
+import javax.xml.transform.TransformerException;
 
 @Command(name = "run", mixinStandardHelpOptions = true, version = "run 0.1",
         description = "JIRA Lint")
@@ -102,13 +110,29 @@ class run implements Callable<Integer> {
                     jiraUser = new JiraUser("Paul Robinson", "probinso@redhat.com");
                 }
 
-                ReportResult reportResult = new ReportResult(issue.getSummary(), checkItem.getDescription(), new URL("https://issues.redhat.com/browse/" + issue.getKey()), issue.getKey(), jiraUser);
+                ReportResult reportResult = new ReportResult(checkItemID, issue.getSummary(), checkItem.getDescription(), new URL("https://issues.redhat.com/browse/" + issue.getKey()), issue.getKey(), jiraUser);
                 allReportResults.add(reportResult);
             }
         }
 
         /*
-            Assign each report Result to a user
+            Group report Results by ID
+         */
+        Map<String, List<ReportResult>> reportsByID = new HashMap<>();
+        for (String checkItemID : configuration.keySet()) { // Initialise all the lists, to ensure empty lists are still presnet (needed for case where all tests pass)
+            reportsByID.put(checkItemID, new ArrayList<>());
+        }
+        for(ReportResult reportResult : allReportResults) {
+            reportsByID.get(reportResult.getCheckItemID()).add(reportResult);
+        }
+
+        /*
+            Write out JUnit test result XML files
+         */
+        writeJUnitTestResultsXML(reportsByID);
+
+        /*
+            Group report Results by user
          */
         Map<JiraUser, List<ReportResult>> reportsByJiraUser = new HashMap<>();
         for(ReportResult reportResult : allReportResults) {
@@ -120,7 +144,7 @@ class run implements Callable<Integer> {
         }
 
         /*
-            Generate Email for each user
+            Send Email for each user
          */
         System.out.println("\n=== Emailing reports to users ===");
         for (JiraUser jiraUser : reportsByJiraUser.keySet()) {
@@ -227,6 +251,56 @@ class run implements Callable<Integer> {
         return body;
     }
 
+    public static void writeJUnitTestResultsXML(Map<String, List<ReportResult>> reportsByID) {
+
+        //TODO: only writes out suites with errors. Should write a test file for suites where the tests all pass
+
+        for (String reportID : reportsByID.keySet()) {
+            try {
+
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder documentBuilder = factory.newDocumentBuilder();
+                Document document = documentBuilder.newDocument();
+
+                Element testsuiteElement = document.createElement("testsuite");
+                document.appendChild(testsuiteElement);
+
+                if (reportsByID.get(reportID).size() == 0) { // all tests passed
+                    Element testCaseElement = document.createElement("testcase");
+                    testCaseElement.setAttribute("classname", reportID);
+                    testCaseElement.setAttribute("name", "found.noissues");
+                    testsuiteElement.appendChild(testCaseElement);
+
+                } else { // some tests failed
+                    for (ReportResult reportResult : reportsByID.get(reportID)) {
+                        Element testCaseElement = document.createElement("testcase");
+                        testCaseElement.setAttribute("classname", reportResult.getJiraKey());
+                        testCaseElement.setAttribute("name", reportResult.getCheckItemID() + "." + reportResult.getContact().getEmail());
+                        testsuiteElement.appendChild(testCaseElement);
+
+                        Element errorElement = document.createElement("error");
+                        errorElement.setAttribute("message", reportResult.getJiraLink() + " | " + reportResult.getDescription());
+                        testCaseElement.appendChild(errorElement);
+                    }
+                }
+
+                /*
+                    Write out the XML file
+                 */
+                TransformerFactory tFactory = TransformerFactory.newInstance();
+                Transformer transformer = tFactory.newTransformer();
+                DOMSource source = new DOMSource(document);
+                StreamResult result = new StreamResult(reportID + "-test.xml");
+                transformer.transform(source, result);
+
+            } catch (ParserConfigurationException | TransformerException e) {
+                e.printStackTrace();
+            }
+        }
+
+
+    }
+
     public static void sendMail(String body, String to) {
 
         Properties prop = System.getProperties();
@@ -302,18 +376,24 @@ class run implements Callable<Integer> {
 
     static class ReportResult {
 
+        final private String checkItemID;
         final private String summary;
-        final private  String description;
+        final private String description;
         final private URL jiraLink;
         final private String jiraKey;
         final private JiraUser contact;
 
-        public ReportResult(String summary, String description, URL jiraLink, String jiraKey, JiraUser contact) {
+        public ReportResult(String checkItemID, String summary, String description, URL jiraLink, String jiraKey, JiraUser contact) {
+            this.checkItemID = checkItemID;
             this.summary = summary;
             this.description = description;
             this.jiraLink = jiraLink;
             this.jiraKey = jiraKey;
             this.contact = contact;
+        }
+
+        public String getCheckItemID() {
+            return checkItemID;
         }
 
         public String getSummary() {
