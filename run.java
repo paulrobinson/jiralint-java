@@ -19,6 +19,7 @@ import javax.mail.Session;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.*;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -52,7 +53,7 @@ class run implements Callable<Integer> {
     @CommandLine.Option(names = {"-s", "--jira-server"}, description = "The JIRA server to connect to", required = true)
     private String jiraServerURL;
 
-    @CommandLine.Option(names = {"-r", "--config"}, description = "The config file to load the query to version mappings from", required = true)
+    @CommandLine.Option(names = {"-r", "--report"}, description = "The config file to load the query to version mappings from", required = true)
     private String pathToConfigFile;
 
     private static final String SMTP_SERVER = "smtp.corp.redhat.com";
@@ -74,27 +75,89 @@ class run implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
 
-        System.out.println("\n=== Initialising ===");
-        System.out.println("Using reports defined in " + pathToConfigFile);
-
         /*
             Initialise
          */
-        Map<String, CheckItem> configuration = loadCheckItemMap(pathToConfigFile);
+        System.out.println("\n=== Initialising ===");
+        System.out.println("Using reports defined in " + pathToConfigFile);
+        Map<String, ReportItem> configuration = loadReportMap(pathToConfigFile);
         restClient = new AsynchronousJiraRestClientFactory().createWithBasicHttpAuthentication(new URI(jiraServerURL), jiraUsername, jiraPassword);
 
         /*
             Gather all report results
          */
+        List<ReportResult> allReportResults = getReportResults(configuration);
+
+        /*
+            Group report Results by ID
+         */
+        Map<String, List<ReportResult>> reportsByID = groupReportResultsByType(configuration, allReportResults);
+
+        /*
+            Write out JUnit test result XML files
+         */
+        writeJUnitTestResultsXML(reportsByID);
+
+        /*
+            Group report Results by user
+         */
+        Map<JiraUser, List<ReportResult>> reportsByJiraUser = groupReportResultsByUser(allReportResults);
+
+        /*
+            Send Email for each user
+         */
+        emailReportsToEachUser(reportsByJiraUser);
+
+        return 0;
+    }
+
+    private void emailReportsToEachUser(Map<JiraUser, List<ReportResult>> reportsByJiraUser) {
+        System.out.println("\n=== Emailing reports to users ===");
+        for (JiraUser jiraUser : reportsByJiraUser.keySet()) {
+
+            System.out.println("Sending email with " + reportsByJiraUser.get(jiraUser).size() + " issue(s) to: " + jiraUser.getEmail());
+            for (ReportResult reportResult : reportsByJiraUser.get(jiraUser)) {
+                System.out.println("* " + reportResult.getJiraLink());
+            }
+
+            String emailBody = createEmailBody(jiraUser, reportsByJiraUser.get(jiraUser));
+            sendMail(emailBody, "probinso@redhat.com"); //Always send emails to Paul for now
+        }
+    }
+
+    private Map<JiraUser, List<ReportResult>> groupReportResultsByUser(List<ReportResult> allReportResults) {
+        Map<JiraUser, List<ReportResult>> reportsByJiraUser = new HashMap<>();
+        for(ReportResult reportResult : allReportResults) {
+
+            if (reportsByJiraUser.get(reportResult.getContact()) == null) {
+                reportsByJiraUser.put(reportResult.getContact(), new ArrayList<>());
+            }
+            reportsByJiraUser.get(reportResult.getContact()).add(reportResult);
+        }
+        return reportsByJiraUser;
+    }
+
+    private Map<String, List<ReportResult>> groupReportResultsByType(Map<String, ReportItem> configuration, List<ReportResult> allReportResults) {
+        Map<String, List<ReportResult>> reportsByID = new HashMap<>();
+        for (String reportItemID : configuration.keySet()) { // Initialise all the lists, to ensure empty lists are still presnet (needed for case where all tests pass)
+            reportsByID.put(reportItemID, new ArrayList<>());
+        }
+        for(ReportResult reportResult : allReportResults) {
+            reportsByID.get(reportResult.getReportItemID()).add(reportResult);
+        }
+        return reportsByID;
+    }
+
+    private List<ReportResult> getReportResults(Map<String, ReportItem> configuration) throws MalformedURLException {
         System.out.println("\n=== Gathering reports ===");
         List<ReportResult> allReportResults = new ArrayList<>();
-        for (String checkItemID : configuration.keySet()) {
+        for (String reportItemID : configuration.keySet()) {
 
-            CheckItem checkItem = configuration.get(checkItemID);
-            SearchResult searchResultsAll = restClient.getSearchClient().searchJql(checkItem.getJql()).claim();
+            ReportItem reportItem = configuration.get(reportItemID);
+            SearchResult searchResultsAll = restClient.getSearchClient().searchJql(reportItem.getJql()).claim();
 
-            System.out.println("Check for '" + checkItemID + "'");
-            System.out.println(searchResultsAll.getTotal() + " Issues found with '" + checkItemID + "'");
+            System.out.println("Check for '" + reportItemID + "'");
+            System.out.println(searchResultsAll.getTotal() + " Issues found with '" + reportItemID + "'");
 
             for (Issue issue :searchResultsAll.getIssues()) {
 
@@ -110,55 +173,11 @@ class run implements Callable<Integer> {
                     jiraUser = new JiraUser("Paul Robinson", "probinso@redhat.com");
                 }
 
-                ReportResult reportResult = new ReportResult(checkItemID, issue.getSummary(), checkItem.getDescription(), new URL("https://issues.redhat.com/browse/" + issue.getKey()), issue.getKey(), jiraUser);
+                ReportResult reportResult = new ReportResult(reportItemID, issue.getSummary(), reportItem.getDescription(), new URL("https://issues.redhat.com/browse/" + issue.getKey()), issue.getKey(), jiraUser);
                 allReportResults.add(reportResult);
             }
         }
-
-        /*
-            Group report Results by ID
-         */
-        Map<String, List<ReportResult>> reportsByID = new HashMap<>();
-        for (String checkItemID : configuration.keySet()) { // Initialise all the lists, to ensure empty lists are still presnet (needed for case where all tests pass)
-            reportsByID.put(checkItemID, new ArrayList<>());
-        }
-        for(ReportResult reportResult : allReportResults) {
-            reportsByID.get(reportResult.getCheckItemID()).add(reportResult);
-        }
-
-        /*
-            Write out JUnit test result XML files
-         */
-        writeJUnitTestResultsXML(reportsByID);
-
-        /*
-            Group report Results by user
-         */
-        Map<JiraUser, List<ReportResult>> reportsByJiraUser = new HashMap<>();
-        for(ReportResult reportResult : allReportResults) {
-
-            if (reportsByJiraUser.get(reportResult.getContact()) == null) {
-                reportsByJiraUser.put(reportResult.getContact(), new ArrayList<>());
-            }
-            reportsByJiraUser.get(reportResult.getContact()).add(reportResult);
-        }
-
-        /*
-            Send Email for each user
-         */
-        System.out.println("\n=== Emailing reports to users ===");
-        for (JiraUser jiraUser : reportsByJiraUser.keySet()) {
-
-            System.out.println("Sending email with " + reportsByJiraUser.get(jiraUser).size() + " issue(s) to: " + jiraUser.getEmail());
-            for (ReportResult reportResult : reportsByJiraUser.get(jiraUser)) {
-                System.out.println("* " + reportResult.getJiraLink());
-            }
-
-            String emailBody = createEmailBody(jiraUser, reportsByJiraUser.get(jiraUser));
-            sendMail(emailBody, "probinso@redhat.com"); //Always send emails to Paul for now
-        }
-
-        return 0;
+        return allReportResults;
     }
 
     private JiraUser lookupComponentLead(String componentName) {
@@ -197,27 +216,28 @@ class run implements Callable<Integer> {
         return null;
     }
 
-    private Map<String, CheckItem> loadCheckItemMap(String pathToConfigFile) {
+    private Map<String, ReportItem> loadReportMap(String pathToConfigFile) {
         try {
 
             String jsonString = new String(Files.readAllBytes(Paths.get(pathToConfigFile)));
             JSONArray jsonArray = new JSONArray(jsonString);
 
-            Map<String, CheckItem> checkItemsMap = new HashMap<>();
+            Map<String, ReportItem> reportItemsMap = new HashMap<>();
+
             for (int i=0; i<jsonArray.length(); i++) {
-                JSONObject checkItemJson = jsonArray.getJSONObject(i);
+                JSONObject reportItemJson = jsonArray.getJSONObject(i);
 
-                if (checkItemJson.length() != 1)
-                    throw new RuntimeException("Unexpected number of items found: " + checkItemJson.length() + ". This message needs to be more specific! sorry :-(");
+                if (reportItemJson.length() != 1)
+                    throw new RuntimeException("Unexpected number of items found: " + reportItemJson.length() + ". This message needs to be more specific! sorry :-(");
 
-                String checkItemID = checkItemJson.keys().next();
-                JSONObject checkItemBody = checkItemJson.getJSONObject(checkItemID);
+                String reportItemID = reportItemJson.keys().next();
+                JSONObject reportItemBody = reportItemJson.getJSONObject(reportItemID);
 
-                CheckItem checkItem = new CheckItem(checkItemBody.getString("jql"), checkItemBody.getString("description"));
-                checkItemsMap.put(checkItemID, checkItem);
+                ReportItem reportItem = new ReportItem(reportItemBody.getString("jql"), reportItemBody.getString("description"));
+                reportItemsMap.put(reportItemID, reportItem);
             }
 
-            return checkItemsMap;
+            return reportItemsMap;
         } catch (IOException e) {
             throw new RuntimeException("Error loading " + pathToConfigFile, e);
         }
@@ -253,8 +273,6 @@ class run implements Callable<Integer> {
 
     public static void writeJUnitTestResultsXML(Map<String, List<ReportResult>> reportsByID) {
 
-        //TODO: only writes out suites with errors. Should write a test file for suites where the tests all pass
-
         for (String reportID : reportsByID.keySet()) {
             try {
 
@@ -275,7 +293,7 @@ class run implements Callable<Integer> {
                     for (ReportResult reportResult : reportsByID.get(reportID)) {
                         Element testCaseElement = document.createElement("testcase");
                         testCaseElement.setAttribute("classname", reportResult.getJiraKey());
-                        testCaseElement.setAttribute("name", reportResult.getCheckItemID() + "." + reportResult.getContact().getEmail());
+                        testCaseElement.setAttribute("name", reportResult.getReportItemID() + "." + reportResult.getContact().getEmail());
                         testsuiteElement.appendChild(testCaseElement);
 
                         Element errorElement = document.createElement("error");
@@ -376,15 +394,15 @@ class run implements Callable<Integer> {
 
     static class ReportResult {
 
-        final private String checkItemID;
+        final private String reportItemID;
         final private String summary;
         final private String description;
         final private URL jiraLink;
         final private String jiraKey;
         final private JiraUser contact;
 
-        public ReportResult(String checkItemID, String summary, String description, URL jiraLink, String jiraKey, JiraUser contact) {
-            this.checkItemID = checkItemID;
+        public ReportResult(String reportItemID, String summary, String description, URL jiraLink, String jiraKey, JiraUser contact) {
+            this.reportItemID = reportItemID;
             this.summary = summary;
             this.description = description;
             this.jiraLink = jiraLink;
@@ -392,8 +410,8 @@ class run implements Callable<Integer> {
             this.contact = contact;
         }
 
-        public String getCheckItemID() {
-            return checkItemID;
+        public String getReportItemID() {
+            return reportItemID;
         }
 
         public String getSummary() {
@@ -449,12 +467,12 @@ class run implements Callable<Integer> {
         }
     }
 
-    static class CheckItem {
+    static class ReportItem {
 
         final private String jql;
         final private String description;
 
-        public CheckItem(String jql, String description) {
+        public ReportItem(String jql, String description) {
             this.jql = jql;
             this.description = description;
         }
