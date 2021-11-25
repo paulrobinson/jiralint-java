@@ -5,7 +5,6 @@
 import com.atlassian.httpclient.api.Request;
 import com.atlassian.jira.rest.client.api.AuthenticationHandler;
 import com.atlassian.jira.rest.client.api.JiraRestClient;
-import com.atlassian.jira.rest.client.api.JiraRestClientFactory;
 import com.atlassian.jira.rest.client.api.domain.*;
 import com.atlassian.jira.rest.client.internal.async.AsynchronousJiraRestClientFactory;
 import com.sun.mail.smtp.SMTPTransport;
@@ -47,17 +46,14 @@ import javax.xml.transform.TransformerException;
         description = "JIRA Lint")
 class run implements Callable<Integer> {
 
-    @CommandLine.Option(names = {"-u", "--username"}, description = "The username to use when connecting to the JIRA server", required = true)
-    private String jiraUsername;
-
-    @CommandLine.Option(names = {"-p", "--password"}, description = "The password to use when connecting to the JIRA server", required = true)
-    private String jiraPassword;
+    @CommandLine.Option(names = {"-t", "--jira-token"}, description = "The Personal Access Token for authenticating with the JIRA server", required = true)
+    private String jiraToken;
 
     @CommandLine.Option(names = {"-s", "--jira-server"}, description = "The JIRA server to connect to", required = true)
     private String jiraServerURL;
 
-    @CommandLine.Option(names = {"-r", "--report"}, description = "The config file to load the query to version mappings from", required = true)
-    private String pathToConfigFile;
+    @CommandLine.Option(names = {"-r", "--report"}, description = "The report file", required = true)
+    private String pathToReportFile;
 
     private static final String SMTP_SERVER = "smtp.corp.redhat.com";
     private static final String USERNAME = "";
@@ -82,10 +78,10 @@ class run implements Callable<Integer> {
             Initialise
          */
         System.out.println("\n=== Initialising ===");
-        System.out.println("Using reports defined in " + pathToConfigFile);
-        Map<String, ReportItem> configuration = loadReportMap(pathToConfigFile);
+        System.out.println("Using reports defined in " + pathToReportFile);
+        Map<String, ReportItem> configuration = loadReportMap(pathToReportFile);
 
-        restClient = new AsynchronousJiraRestClientFactory().create(new URI(jiraServerURL), new BearerHttpAuthenticationHandler(jiraPassword));
+        restClient = new AsynchronousJiraRestClientFactory().create(new URI(jiraServerURL), new BearerHttpAuthenticationHandler(jiraToken));
 
         /*
             Gather all report results
@@ -133,9 +129,7 @@ class run implements Callable<Integer> {
         Map<JiraUser, List<ReportResult>> reportsByJiraUser = new HashMap<>();
         for(ReportResult reportResult : allReportResults) {
 
-            if (reportsByJiraUser.get(reportResult.getContact()) == null) {
-                reportsByJiraUser.put(reportResult.getContact(), new ArrayList<>());
-            }
+            reportsByJiraUser.computeIfAbsent(reportResult.getContact(), k -> new ArrayList<>());
             reportsByJiraUser.get(reportResult.getContact()).add(reportResult);
         }
         return reportsByJiraUser;
@@ -368,7 +362,7 @@ class run implements Callable<Integer> {
 
     static class HTMLDataSource implements DataSource {
 
-        private String html;
+        private final String html;
 
         public HTMLDataSource(String htmlString) {
             html = htmlString;
@@ -490,7 +484,7 @@ class run implements Callable<Integer> {
         }
     }
 
-    public class BearerHttpAuthenticationHandler implements AuthenticationHandler {
+    public static class BearerHttpAuthenticationHandler implements AuthenticationHandler {
 
         private static final String AUTHORIZATION_HEADER = "Authorization";
         private final String token;
