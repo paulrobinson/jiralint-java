@@ -1,8 +1,11 @@
 //usr/bin/env jbang "$0" "$@" ; exit $?
 //REPOS mavencentral,atlassian=https://packages.atlassian.com/maven/repository/public
-//DEPS info.picocli:picocli:4.2.0, com.atlassian.jira:jira-rest-java-client-api:3.0.0, com.atlassian.jira:jira-rest-java-client-core:3.0.0, org.json:json:20200518, com.konghq:unirest-java:3.7.04, com.sun.mail:javax.mail:1.6.2
+//DEPS info.picocli:picocli:4.2.0, com.atlassian.jira:jira-rest-java-client-app:5.2.2, com.atlassian.jira:jira-rest-java-client-api:5.2.2, com.atlassian.jira:jira-rest-java-client-core:5.2.2, org.json:json:20200518, com.konghq:unirest-java:3.7.04, com.sun.mail:javax.mail:1.6.2
 
+import com.atlassian.httpclient.api.Request;
+import com.atlassian.jira.rest.client.api.AuthenticationHandler;
 import com.atlassian.jira.rest.client.api.JiraRestClient;
+import com.atlassian.jira.rest.client.api.JiraRestClientFactory;
 import com.atlassian.jira.rest.client.api.domain.*;
 import com.atlassian.jira.rest.client.internal.async.AsynchronousJiraRestClientFactory;
 import com.sun.mail.smtp.SMTPTransport;
@@ -81,7 +84,8 @@ class run implements Callable<Integer> {
         System.out.println("\n=== Initialising ===");
         System.out.println("Using reports defined in " + pathToConfigFile);
         Map<String, ReportItem> configuration = loadReportMap(pathToConfigFile);
-        restClient = new AsynchronousJiraRestClientFactory().createWithBasicHttpAuthentication(new URI(jiraServerURL), jiraUsername, jiraPassword);
+
+        restClient = new AsynchronousJiraRestClientFactory().create(new URI(jiraServerURL), new BearerHttpAuthenticationHandler(jiraPassword));
 
         /*
             Gather all report results
@@ -483,6 +487,21 @@ class run implements Callable<Integer> {
 
         public String getDescription() {
             return description;
+        }
+    }
+
+    public class BearerHttpAuthenticationHandler implements AuthenticationHandler {
+
+        private static final String AUTHORIZATION_HEADER = "Authorization";
+        private final String token;
+
+        public BearerHttpAuthenticationHandler(final String token) {
+            this.token = token;
+        }
+
+        @Override
+        public void configure(Request.Builder builder) {
+            builder.setHeader(AUTHORIZATION_HEADER, "Bearer " + token);
         }
     }
 }
