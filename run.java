@@ -58,6 +58,9 @@ class run implements Callable<Integer> {
     @CommandLine.Option(names = {"-f", "--html-dump-path"}, description = "File path to dump HTMl email bodies to", required = false)
     private String htmlDumpFilePath;
 
+    @CommandLine.Option(names = {"-o", "--overide-recipient"}, description = "Override the email recipient of emails", required = false)
+    private String overrideRecipient;
+
     @CommandLine.Option(names = {"-d", "--dry-run"}, description = "Don't actually send any emails")
     private Boolean dryRun = false;
 
@@ -87,10 +90,11 @@ class run implements Callable<Integer> {
             Initialise
          */
         System.out.println("\n=== Initialising ===");
-        System.out.println("Using reports defined in " + pathToReportFile);
+        System.out.println("[Reports] Using reports defined in " + pathToReportFile);
         if (dryRun) System.out.println("[DRY RUN] Won't actually send emails");
         if (verbose) System.out.println("[Verbose] Will dump email bodies to the console");
-        if (htmlDumpFilePath != null) System.out.println("Will dump HTML email bodies to: " + htmlDumpFilePath);
+        if (overrideRecipient != null) System.out.println("[Override] Will send emails to '" + overrideRecipient + "' instead of the involved JIRA user");
+        if (htmlDumpFilePath != null) System.out.println("[HTML Dump] Will dump HTML email bodies to: " + htmlDumpFilePath);
         Map<String, ReportItem> configuration = loadReportMap(pathToReportFile);
 
         restClient = new AsynchronousJiraRestClientFactory().create(new URI(jiraServerURL), new BearerHttpAuthenticationHandler(jiraToken));
@@ -148,7 +152,15 @@ class run implements Callable<Integer> {
             if (dryRun) {
                 System.out.println("[Dry Run] Not actually sending the email");
             } else {
-                sendMail(emailBody, "probinso@redhat.com"); //Always send emails to Paul for now
+
+                String recipient;
+                if (overrideRecipient == null) {
+                    recipient = jiraUser.getEmail();
+                } else {
+                    recipient = overrideRecipient;
+                }
+
+                sendMail(emailBody, recipient);
             }
         }
 
