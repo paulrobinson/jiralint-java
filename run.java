@@ -55,6 +55,12 @@ class run implements Callable<Integer> {
     @CommandLine.Option(names = {"-r", "--report"}, description = "The report file", required = true)
     private String pathToReportFile;
 
+    @CommandLine.Option(names = {"-d", "--dry-run"}, description = "Don't actually send any emails")
+    private Boolean dryRun = false;
+
+    @CommandLine.Option(names = {"-v", "--verbose"}, description = "Dump email bodies to the console")
+    private Boolean verbose = false;
+
     private static final String SMTP_SERVER = "smtp.corp.redhat.com";
     private static final String USERNAME = "";
     private static final String PASSWORD = "";
@@ -79,6 +85,8 @@ class run implements Callable<Integer> {
          */
         System.out.println("\n=== Initialising ===");
         System.out.println("Using reports defined in " + pathToReportFile);
+        if (dryRun) System.out.println("[DRY RUN] Won't actually send emails");
+        if (verbose) System.out.println("[Verbose] Will dump email bodies to the console");
         Map<String, ReportItem> configuration = loadReportMap(pathToReportFile);
 
         restClient = new AsynchronousJiraRestClientFactory().create(new URI(jiraServerURL), new BearerHttpAuthenticationHandler(jiraToken));
@@ -121,7 +129,16 @@ class run implements Callable<Integer> {
             }
 
             String emailBody = createEmailBody(jiraUser, reportsByJiraUser.get(jiraUser));
-            sendMail(emailBody, "probinso@redhat.com"); //Always send emails to Paul for now
+
+            if (verbose) {
+                System.out.println(emailBody);
+            }
+
+            if (dryRun) {
+                System.out.println("[Dry Run] Not actually sending the email");
+            } else {
+                sendMail(emailBody, "probinso@redhat.com"); //Always send emails to Paul for now
+            }
         }
     }
 
