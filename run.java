@@ -55,6 +55,9 @@ class run implements Callable<Integer> {
     @CommandLine.Option(names = {"-r", "--report"}, description = "The report file", required = true)
     private String pathToReportFile;
 
+    @CommandLine.Option(names = {"-f", "--html-dump-path"}, description = "File path to dump HTMl email bodies to", required = false)
+    private String htmlDumpFilePath;
+
     @CommandLine.Option(names = {"-d", "--dry-run"}, description = "Don't actually send any emails")
     private Boolean dryRun = false;
 
@@ -87,6 +90,7 @@ class run implements Callable<Integer> {
         System.out.println("Using reports defined in " + pathToReportFile);
         if (dryRun) System.out.println("[DRY RUN] Won't actually send emails");
         if (verbose) System.out.println("[Verbose] Will dump email bodies to the console");
+        if (htmlDumpFilePath != null) System.out.println("Will dump HTML email bodies to: " + htmlDumpFilePath);
         Map<String, ReportItem> configuration = loadReportMap(pathToReportFile);
 
         restClient = new AsynchronousJiraRestClientFactory().create(new URI(jiraServerURL), new BearerHttpAuthenticationHandler(jiraToken));
@@ -120,6 +124,9 @@ class run implements Callable<Integer> {
     }
 
     private void emailReportsToEachUser(Map<JiraUser, List<ReportResult>> reportsByJiraUser) {
+
+        HTMLDump htmlDump = new HTMLDump();
+
         System.out.println("\n=== Emailing reports to users ===");
         for (JiraUser jiraUser : reportsByJiraUser.keySet()) {
 
@@ -130,6 +137,10 @@ class run implements Callable<Integer> {
 
             String emailBody = createEmailBody(jiraUser, reportsByJiraUser.get(jiraUser));
 
+            if (htmlDumpFilePath != null) {
+                htmlDump.appendHtmlChunk(emailBody);
+            }
+
             if (verbose) {
                 System.out.println(emailBody);
             }
@@ -139,6 +150,10 @@ class run implements Callable<Integer> {
             } else {
                 sendMail(emailBody, "probinso@redhat.com"); //Always send emails to Paul for now
             }
+        }
+
+        if (htmlDumpFilePath != null) {
+            htmlDump.dump(new File(htmlDumpFilePath));
         }
     }
 
@@ -513,6 +528,40 @@ class run implements Callable<Integer> {
         @Override
         public void configure(Request.Builder builder) {
             builder.setHeader(AUTHORIZATION_HEADER, "Bearer " + token);
+        }
+    }
+
+    public static class HTMLDump {
+
+        private String html;
+        private boolean closed = false;
+
+        public HTMLDump() {
+            this.html = "<HTML><BODY>";
+        }
+
+        public void appendHtmlChunk(String htmlChunk) {
+
+            if (closed) throw new RuntimeException("This HTML Dump is already closed, can't append more HTML to it");
+
+            this.html += "<hr/>";
+            this.html += htmlChunk;
+        }
+
+        public void dump(File outputFile) {
+
+            if (!closed) {
+                this.html += "</Body></HTML>";
+                closed = true;
+            }
+
+            try {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile));
+                writer.write(html);
+                writer.close();
+            } catch (IOException e) {
+                throw new RuntimeException("Error writing HTML dump to " + outputFile.getAbsolutePath(), e);
+            }
         }
     }
 }
