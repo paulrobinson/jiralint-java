@@ -2,7 +2,7 @@
  {
    "noTeamComponent": {
      "jql": "project = Quarkus AND (component not in ('team/eng', 'team/cee', 'team/docs', 'team/ibm', 'team/mktg', 'team/pm', 'team/pgm', 'team/prod', 'team/qe') OR component is EMPTY) AND status != closed",
-     "description": "Issue has no Team component. Please update the component field with one (or more) of: 'team/eng', 'team/cee', 'team/docs', 'team/ibm', 'team/mktg', 'team/pm', 'team/pgm', 'team/prod', 'team/qe'"
+     "description": "Issue has no Team component. Please update the 'component/s' field with one (or more) of: 'team/eng', 'team/cee', 'team/docs', 'team/ibm', 'team/mktg', 'team/pm', 'team/pgm', 'team/prod', 'team/qe'"
    }
  },
  {
