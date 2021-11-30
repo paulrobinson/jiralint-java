@@ -287,6 +287,8 @@ class run implements Callable<Integer> {
 
     public String createEmailBody(JiraUser jiraUser, List<ReportResult> reportResults) {
 
+        String allMyIssuesQuery = createAllMyIssuesQuery(reportResults);
+
         System.out.println("Sending email for user: " + jiraUser.getName());
 
         String body = "<p>Hi " + jiraUser.getName() + ",</p>" +
@@ -294,7 +296,7 @@ class run implements Callable<Integer> {
                 "<p>The JIRA Lint tool has determined that you are the best person to ask to fix them. Most likely you are the assignee, or (for issues with no assignee) the component lead.</p>";
 
         body += "<table border='1' style='border-collapse:collapse'>";
-        body += "<tr><th>Issue Link</th><th>Issue Summary</th><th>Problem Description & Required Action (from you)</th></tr>";
+        body += "<tr><th>Issue Link (<a href=" + createAllMyIssuesQuery(reportResults) + ">all</a>)</th><th>Issue Summary</th><th>Problem Description & Required Action (from you)</th></tr>";
         for (ReportResult reportResult : reportResults) {
 
             body += "<tr>";
@@ -311,6 +313,21 @@ class run implements Callable<Integer> {
         body += "<p>Paul (via the JIRA Lint tool)</p>";
 
         return body;
+    }
+
+    private String createAllMyIssuesQuery(List<ReportResult> reportResults) {
+        String allMyIssuesQuery = jiraServerURL + "/issues/?jql=id%20in%20(";
+        boolean first = true;
+        for (ReportResult reportResult : reportResults) {
+            if (!first) {
+                allMyIssuesQuery += "%2C";
+            }
+            allMyIssuesQuery += reportResult.getJiraKey();
+            first = false;
+        }
+        allMyIssuesQuery += ")";
+
+        return allMyIssuesQuery;
     }
 
     public static void writeJUnitTestResultsXML(Map<String, List<ReportResult>> reportsByID) {
