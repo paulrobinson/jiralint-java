@@ -287,8 +287,6 @@ class run implements Callable<Integer> {
 
     public String createEmailBody(JiraUser jiraUser, List<ReportResult> reportResults) {
 
-        String allMyIssuesQuery = createAllMyIssuesQuery(reportResults);
-
         System.out.println("Sending email for user: " + jiraUser.getName());
 
         String body = "<p>Hi " + jiraUser.getName() + ",</p>" +
