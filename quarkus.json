@@ -31,7 +31,7 @@
  },
  {
    "missingGA": {
-     "jql": "project = quarkus and fixVersion !~ '*.ga' AND fixVersion != 'Ongoing Prod'",
+     "jql": "project = quarkus and fixVersion !~ '*.ga' AND fixVersion != 'Ongoing Prod' AND fixVersion != 'Ongoing Registry'",
      "description": "This issue seems to have a fixVersion set to a particular product release, but is missing the GA release it targets. Please respond to this email if you are unure what GA release to add to the fixVersion field."
    }
  }
