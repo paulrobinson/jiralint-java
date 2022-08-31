@@ -19,7 +19,7 @@
  },
  {
    "missingVersion": {
-     "jql": "project = Quarkus AND fixVersion is EMPTY AND status not in ('To Do', 'Analysis in Progress', 'closed') AND (component not in (code.quarkus) or component is Empty)",
+     "jql": "project = Quarkus AND fixVersion is EMPTY AND status not in ('To Do', 'Analysis in Progress', 'closed') AND (component not in (code.quarkus) or component is Empty) AND (labels not in (upstream-kafka) or labels is Empty)",
      "description": "This issue is in progress or completed so should have a fixVersion set. Please set the fix version, or reply to this email if you are unsure what fix version to set"
    }
  },
