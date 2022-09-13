@@ -1,6 +1,6 @@
 //usr/bin/env jbang "$0" "$@" ; exit $?
 //REPOS mavencentral,atlassian=https://packages.atlassian.com/maven/repository/public
-//DEPS info.picocli:picocli:4.2.0, com.atlassian.jira:jira-rest-java-client-app:5.2.2, com.atlassian.jira:jira-rest-java-client-api:5.2.2, com.atlassian.jira:jira-rest-java-client-core:5.2.2, org.json:json:20200518, com.konghq:unirest-java:3.7.04, com.sun.mail:javax.mail:1.6.2
+//DEPS info.picocli:picocli:4.2.0, com.atlassian.jira:jira-rest-java-client-app:5.2.4, com.atlassian.jira:jira-rest-java-client-api:5.2.4, com.atlassian.jira:jira-rest-java-client-core:5.2.4, org.json:json:20200518, com.konghq:unirest-java:3.7.04, com.sun.mail:javax.mail:1.6.2
 
 import com.atlassian.httpclient.api.Request;
 import com.atlassian.jira.rest.client.api.AuthenticationHandler;
