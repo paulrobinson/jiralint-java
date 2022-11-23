@@ -70,7 +70,7 @@ class run implements Callable<Integer> {
     private static final String SMTP_SERVER = "smtp.corp.redhat.com";
     private static final String USERNAME = "";
     private static final String PASSWORD = "";
-    private static final String EMAIL_FROM = "probinso@redhat.com";
+    private static final String EMAIL_FROM = "ggastald@redhat.com";
     private static final String EMAIL_SUBJECT = "ACTION REQUIRED: Please update these Quarkus JIRA issues";
 
     //Cache of component leads (looking up is expensive)
