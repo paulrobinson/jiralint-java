@@ -212,7 +212,7 @@ class run implements Callable<Integer> {
                 }
                 else //Fallback to JIRA Lint process maintainer
                 {
-                    jiraUser = new JiraUser("Paul Robinson", "probinso@redhat.com");
+                    jiraUser = new JiraUser("RHBQ Release Coordinator", EMAIL_FROM);
                 }
 
                 ReportResult reportResult = new ReportResult(reportItemID, issue.getSummary(), reportItem.getDescription(), new URL("https://issues.redhat.com/browse/" + issue.getKey()), issue.getKey(), jiraUser);
@@ -308,7 +308,7 @@ class run implements Callable<Integer> {
         body += "</p>";
         body += "<p>If you are confused, or think this email has been sent in error, hit reply to let me know.</p>";
         body += "<p>Thanks,</p>";
-        body += "<p>Paul (via the JIRA Lint tool)</p>";
+        body += "<p>RHBQ Release Coordinator (via the JIRA Lint tool)</p>";
 
         return body;
     }

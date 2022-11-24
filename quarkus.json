@@ -38,7 +38,7 @@
  {
    "OpenOrVersionedNotDoneIssue": {
      "jql": "project = QUARKUS AND (resolution != 'Done') AND (status not in (Closed) or fixVersion is not EMPTY)",
-     "description": "Duplicate issues should be in the 'Closed' status and not be assigned to a FixVersion. This ensures that they don't clutter up reports. Please fix this be ensuring the issue is in the 'Closed' status and that the 'Fix Version/s' field is empty"
+     "description": "Open Issues with a resolution different than 'Done' should be in the 'Closed' status and not be assigned to a FixVersion. This ensures that they don't clutter up reports. Please fix this be ensuring the issue is in the 'Closed' status and that the 'Fix Version/s' field is empty"
    }
  },
  {
