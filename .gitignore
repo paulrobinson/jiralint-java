@@ -25,3 +25,7 @@ hs_err_pid*
 # JIRA Lint specific files
 *-test.xml
 emails.html
+
+# IDE files
+*.iml
+.idea
