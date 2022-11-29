@@ -43,8 +43,8 @@
  },
  {
    "InvalidStatuses": {
-     "jql": "project = QUARKUS AND status in (\"Backlog\",\"Review\",\"Release Pending\")",
-     "description": "Do not use Backlog, Review and Release Pending states, please avoid them otherwise they can end up in a black hole (not displayed in boards). See https://docs.google.com/drawings/d/1wlCQGGCJNXswnE2IiBcCI68cE98T3HSIlUuPePqO_0c/edit for the full JIRA workflow"
+     "jql": "project = QUARKUS AND status in (\"Backlog\",\"Review\",\"Release Pending\",\"Resolved\")",
+     "description": "Do not use Backlog, Resolved, Review and Release Pending states, please avoid them otherwise they can end up in a black hole (not displayed in boards). See https://docs.google.com/drawings/d/1wlCQGGCJNXswnE2IiBcCI68cE98T3HSIlUuPePqO_0c/edit for the full JIRA workflow"
    }
  }
 ]
